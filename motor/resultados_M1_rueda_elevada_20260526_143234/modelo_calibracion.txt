@@ -1,0 +1,18 @@
+CALIBRACION PWM - VELOCIDAD ANGULAR EMG30
+=========================================
+Motor/rueda: M1
+Condicion: rueda_elevada
+Voltaje fuente puente H: 12.000 V
+PWM firmado en [-255,255]; omega en rad/s.
+
+El voltaje equivalente Vfuente*PWM/255 no es una medicion del voltaje terminal del motor.
+
+GIRO POSITIVO
+omega = 0.1729404779 * PWM + (-22.5695243134)
+R2 = 0.986522
+PWM minimo detectado = 140
+PWM = (omega_d - (-22.5695243134)) / 0.1729404779
+
+GIRO NEGATIVO
+No fue posible ajustar este sentido.
+

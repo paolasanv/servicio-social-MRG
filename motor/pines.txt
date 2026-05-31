@@ -1,0 +1,14 @@
+// Puente H L298N
+const uint8_t PIN_ENA = 19;     // PWM para velocidad
+const uint8_t PIN_IN1 = 18;     // Direccion
+// cambio a 26
+
+const uint8_t PIN_IN2 = 5;     // Direccion
+//cambio a 27
+
+// Potenciometro
+const uint8_t PIN_POT = 35;     // ADC, solo entrada
+
+// Encoder EMG30
+const uint8_t PIN_ENC_A = 15;   // Cable azul, protegido a 3.3 V
+const uint8_t PIN_ENC_B = 4;   // Cable morado, protegido a 3.3 V
