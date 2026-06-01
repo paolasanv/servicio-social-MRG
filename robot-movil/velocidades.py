@@ -21,46 +21,22 @@ sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
 #===========================
 
-const float A_POS = 0.1757770768f;
-const float B_POS = -23.2700809430f;
-const float A_NEG = 0.1797019906f;
-const float B_NEG = 24.2606930126f;
-const int PWM_MIN_POS = 140;
-const int PWM_MIN_NEG = -140;
-
-int16_t pwmDesdeOmega(float omegaDeseada) {
-  if (fabs(omegaDeseada) <= 0.05f) return 0;
-  float pwm;
-  if (omegaDeseada > 0.0f) {
-    pwm = (omegaDeseada - B_POS) / A_POS;
-    if (pwm < PWM_MIN_POS) pwm = PWM_MIN_POS;
-  } else {
-    pwm = (omegaDeseada - B_NEG) / A_NEG;
-    if (pwm > PWM_MIN_NEG) pwm = PWM_MIN_NEG;
-  }
-  return (int16_t)round(constrain(pwm, -255.0f, 255.0f));
-}
-
-
 def escalar_pwm(omega):
-    pwm = 0
-    if (abs(omega) <= 0.05):
+    if abs(omega) <= 0.05:
         return 0
-    elif (omega > 0):
-        pwm = (omega - (-23.2700809430)) / 0.1757770768
-    else:
-        pwm = (omega - (24.2606930126)) / 0.1797019906
 
-    if pwm > 0 and pwm <= 140:
-        return 140
-    elif pwm < 0 and pwm >= -140:
-        return -140
-    elif pwm > 255:
-        return 255
-    elif pwm < -255
-        return -255
-    else
-        return pwm
+    if omega > 0:
+        pwm = (omega - (-23.2700809430)) / 0.1757770768
+        if pwm < 140:
+            pwm = 140
+    else:
+        pwm = (omega - 24.2606930126) / 0.1797019906
+        if pwm > -140:
+            pwm = -140
+
+    pwm = max(-255, min(255, pwm))
+
+    return int(round(pwm))
 
 #===========================
 def enviar_velocidades(v, w):
