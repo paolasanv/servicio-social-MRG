@@ -1,0 +1,103 @@
+# xbox_dife.py
+import socket
+import struct
+import pygame
+
+# ========== Configuración UDP ==========
+UDP_IP = "192.168.137.140"   # IP de tu ESP32
+UDP_PORT = 12345             # Puerto de escucha en ESP32
+
+# Cinemática del robot diferencial
+R = 0.05   # Radio de rueda (m)
+L = 0.20   # Distancia entre ruedas (m)
+
+# Inicializar joystick con pygame
+pygame.init()
+pygame.joystick.init()
+joystick = pygame.joystick.Joystick(0)
+joystick.init()
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+#===========================
+
+const float A_POS = 0.1757770768f;
+const float B_POS = -23.2700809430f;
+const float A_NEG = 0.1797019906f;
+const float B_NEG = 24.2606930126f;
+const int PWM_MIN_POS = 140;
+const int PWM_MIN_NEG = -140;
+
+int16_t pwmDesdeOmega(float omegaDeseada) {
+  if (fabs(omegaDeseada) <= 0.05f) return 0;
+  float pwm;
+  if (omegaDeseada > 0.0f) {
+    pwm = (omegaDeseada - B_POS) / A_POS;
+    if (pwm < PWM_MIN_POS) pwm = PWM_MIN_POS;
+  } else {
+    pwm = (omegaDeseada - B_NEG) / A_NEG;
+    if (pwm > PWM_MIN_NEG) pwm = PWM_MIN_NEG;
+  }
+  return (int16_t)round(constrain(pwm, -255.0f, 255.0f));
+}
+
+
+def escalar_pwm(omega):
+    pwm = 0
+    if (abs(omega) <= 0.05):
+        return 0
+    elif (omega > 0):
+        pwm = (omega - (-23.2700809430)) / 0.1757770768
+    else:
+        pwm = (omega - (24.2606930126)) / 0.1797019906
+
+    if pwm > 0 and pwm <= 140:
+        return 140
+    elif pwm < 0 and pwm >= -140:
+        return -140
+    elif pwm > 255:
+        return 255
+    elif pwm < -255
+        return -255
+    else
+        return pwm
+
+#===========================
+def enviar_velocidades(v, w):
+    # Cinemática diferencial
+    v_r = (2 * v + w * L) / (2 * R)   # rueda derecha
+    v_l = (2 * v - w * L) / (2 * R)   # rueda izquierda
+
+    # Escalar a PWM [-255, 255]
+    pwm_r = escalar_pwm(v_r)
+    pwm_l = escalar_pwm(v_l)
+
+    # Formateo de datos
+    data = f"{pwm_r},{pwm_l}".encode()
+
+    # Envío por UDP
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        sock.sendto(data, (UDP_IP, UDP_PORT))
+        print(f"Velocidades enviadas: Derecha = {pwm_r} m/s, Izquierda = {pwm_l} m/s")
+
+# ========== Loop principal ==========
+print("Control Xbox listo. Joystick izquierdo = avanzar/retroceder, derecho = girar")
+
+running = True
+while running:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+    # Leer ejes del control Xbox
+    vx = -joystick.get_axis(1)   # Eje Y joystick izq (adelante/atrás)
+    w  =  joystick.get_axis(3)   # Eje X joystick der (giro)
+
+    # Escalamos velocidades
+    v = vx * 0.2    # velocidad lineal máx 0.5 m/s
+    w = w * 1.0     # velocidad angular máx 1 rad/s
+
+    # Enviar velocidades
+    enviar_velocidades(v, w)
+
+    pygame.time.wait(100)
