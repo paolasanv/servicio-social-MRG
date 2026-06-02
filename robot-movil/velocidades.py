@@ -4,7 +4,7 @@ import struct
 import pygame
 
 # ========== Configuración UDP ==========
-UDP_IP = "192.168.137.140"   # IP de tu ESP32
+UDP_IP = "192.168.137.185"   # IP de tu ESP32
 UDP_PORT = 12345             # Puerto de escucha en ESP32
 
 # Cinemática del robot diferencial
@@ -28,11 +28,11 @@ def escalar_pwm(omega):
     if omega > 0:
         pwm = (omega - (-23.2700809430)) / 0.1757770768
         if pwm < 140:
-            pwm = 140
+            pwm = 0
     else:
         pwm = (omega - 24.2606930126) / 0.1797019906
         if pwm > -140:
-            pwm = -140
+            pwm = 0
 
     pwm = max(-255, min(255, pwm))
 
@@ -47,7 +47,7 @@ def enviar_velocidades(v, w):
     # Escalar a PWM [-255, 255]
     pwm_r = escalar_pwm(v_r)
     pwm_l = escalar_pwm(v_l)
-
+    print(f"v_r = {v_r}, v_l = {v_l}")
     # Formateo de datos
     data = f"{pwm_r},{pwm_l}".encode()
 
