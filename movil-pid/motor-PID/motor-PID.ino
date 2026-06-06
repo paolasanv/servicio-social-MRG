@@ -1,109 +1,96 @@
 /*
- * Esta version envía velocidades angulares
- *                NO envía PWM
- * Pendiente: Usar orientacion a objetos
- *
+ * Esta versión recibe velocidades angulares mediante UDP
  * */
 
 #include <WiFi.h>
 #include <WiFiUdp.h>
+#include "motor-PID.h"
 
 // Configuración de red WiFi
-const char* ssid = "MiRedWifi";         // ← Cambia esto
-const char* password = "123456789"; // ← Cambia esto
+const char* ssid = "MiRedWifi"; // ← Cambia esto 
+const char* password = "123456789"; // ← Cambia esto 
 
 // Configuración de UDP
-WiFiUDP Udp;
-const unsigned int localUdpPort = 12345;
-char incomingPacket[255];  // Buffer para almacenar los paquetes UDP
-String data = "";          // Variable para almacenar los datos recibidos
+WiFiUDP Udp; 
+const unsigned int localUdpPort = 12345; 
+char incomingPacket[255];  // Buffer para almacenar los paquetes UDP 
 
-// Pines de los motores (ajústalos si usas un driver distinto)
-const int IN1 = 18;
-const int IN2 = 19;
-const int IN3 = 32;
-const int IN4 = 33;
-const int ENA = 5;
-const int ENB = 25;
+// Pines de los motores del driver L298N
+const int IN1 = 18; 
+const int IN2 = 19; 
+const int IN3 = 32; 
+const int IN4 = 33; 
 
-const int PWM_MAX = 255;   // Valor máximo de PWM
-const float maxSpeed = 100.0; // Velocidad máxima esperada desde UDP
+const int ENA = 5; 
+const int ENB = 25; 
+
+// Pines físicos asignados para los encoders (pendiente de revisar)
+const int SENSOR_A_MA = 34; 
+const int SENSOR_B_MA = 35;
+const int SENSOR_A_MB = 36;
+const int SENSOR_B_MB = 39;
+
+// Objetos para calcular el PID de cada motor
+MotorPID motorA(SENSOR_A_MA, SENSOR_B_MA, ENA, IN1, IN2); 
+MotorPID motorB(SENSOR_A_MB, SENSOR_B_MB, ENB, IN3, IN4); 
 
 void setup() {
-  Serial.begin(115200);
+  Serial.begin(115200); 
 
-  // Configura pines de motor
-  pinMode(IN1, OUTPUT);
-  pinMode(IN2, OUTPUT);
-  pinMode(IN3, OUTPUT);
-  pinMode(IN4, OUTPUT);
-  pinMode(ENA, OUTPUT);
-  pinMode(ENB, OUTPUT);
+  // Inicializa los periféricos internos de los objetos motores
+  motorA.begin();
+  motorB.begin();
 
   // Conecta a Wi-Fi
-  WiFi.begin(ssid, password);
+  WiFi.begin(ssid, password); 
   Serial.print("Conectando a WiFi...");
-  while (WiFi.status() != WL_CONNECTED) {
+  while (WiFi.status() != WL_CONNECTED) { 
     delay(500);
-    Serial.print(".");
+    Serial.print("."); 
   }
-  Serial.println("\n✅ Conectado a WiFi");
+  Serial.println("\n✅ Conectado a WiFi"); 
   Serial.print("IP: ");
-  Serial.println(WiFi.localIP());
+  Serial.println(WiFi.localIP()); 
 
   // Inicia UDP
-  Udp.begin(localUdpPort);
+  Udp.begin(localUdpPort); 
   Serial.print("Esperando mensajes en el puerto UDP: ");
-  Serial.println(localUdpPort);
+  Serial.println(localUdpPort); 
 }
 
 void loop() {
-  // Revisa si hay datos entrantes en UDP
-  int packetSize = Udp.parsePacket();
-  if (packetSize) {
-    // Lee el paquete UDP
-    int len = Udp.read(incomingPacket, 255);
-    if (len > 0) {
-      incomingPacket[len] = 0; // Asegura que la cadena se termine
+  // Procesamiento de los datos entrantes de red
+  int packetSize = Udp.parsePacket(); 
+  if (packetSize) { 
+    int len = Udp.read(incomingPacket, 255); 
+    if (len > 0) { 
+      incomingPacket[len] = 0; // Termina la cadena de caracteres de forma segura 
     }
 
-    // Muestra el paquete recibido
     Serial.print("Mensaje UDP recibido: ");
-    Serial.println(incomingPacket);
+    Serial.println(incomingPacket); 
 
-    // Procesa los datos (se espera un formato tipo "v1,v2")
-    int sepIndex = String(incomingPacket).indexOf(',');
-    if (sepIndex > 0) {
+    // Transforma el buffer en un String manipulable
+    String strPacket = String(incomingPacket);
+    int sepIndex = strPacket.indexOf(','); 
+    
+    if (sepIndex > 0) { 
+      // Divide el string en dos partes usando la posición de la coma
+      String part1 = strPacket.substring(0, sepIndex);
+      String part2 = strPacket.substring(sepIndex + 1);
 
-      // aqui se usa la orientacion a objetos
-      //motorA.actualizar();
-      //motorB.actualizar();
-      float vel1 = String(incomingPacket).substring(0, sepIndex).toFloat();
-      float vel2 = String(incomingPacket).substring(sepIndex + 1).toFloat();
-      moverMotor(vel1, IN1, IN2, ENA);
-      moverMotor(-vel2, IN3, IN4, ENB);
+      // Convierte los textos fragmentados a tipos float numéricos
+      float vel1 = part1.toFloat();
+      float vel2 = part2.toFloat();
+
+      // Envía los nuevos SetPoints de velocidad a los controladores
+      motorA.setSetPoint(vel1);
+      motorB.setSetPoint(-vel2); 
     }
   }
-}
 
-/*
- * Esta se debe eliminar
- *
- * */
-// Función para mover los motores según las velocidades recibidas
-void moverMotor(float vel, int in1, int in2, int pwmPin) {
-  int pwm = min((int)(abs(vel) / maxSpeed * PWM_MAX), PWM_MAX);
-
-  if (vel > 0) {
-    digitalWrite(in1, HIGH);
-    digitalWrite(in2, LOW);
-  } else if (vel < 0) {
-    digitalWrite(in1, LOW);
-    digitalWrite(in2, HIGH);
-  } else {
-    digitalWrite(in1, LOW);
-    digitalWrite(in2, LOW);
-  }
-
-  analogWrite(pwmPin, pwm); // Usa ledcWrite si estás en ESP32 moderno
+  // Ejecución constante de las tareas temporizadas del motor (PID y Encoder)
+  // Deben ejecutarse fuera del condicional del paquete UDP para mantener el lazo cerrado estable.
+  motorA.actualizar();
+  motorB.actualizar();
 }
