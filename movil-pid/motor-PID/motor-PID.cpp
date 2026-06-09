@@ -1,38 +1,89 @@
 #include "motor-PID.h"
 
-volatile int MotorPID::cambios = 0;
-
-MotorPID::MotorPID(uint8_t sA, uint8_t sB, uint8_t ena, uint8_t in1, uint8_t in2) {
+MotorPID::MotorPID(
+    uint8_t sA,
+    uint8_t sB,
+    uint8_t ena,
+    uint8_t in1,
+    uint8_t in2,
+    bool invEnc,
+    bool invOut,
+    float kP,
+    float kI,
+    float kD
+) {
     pinSensorA = sA;
     pinSensorB = sB;
     pinENA = ena;
     pinIN1 = in1;
     pinIN2 = in2;
-    maxOmega = maxRPM * PI / 30.0;
+    invertirEncoder = invEnc;
+    invertirSalida = invOut;
+    kp = kP;
+    ki = kI;
+    kd = kD;
 }
 
 void MotorPID::begin() {
-    pinMode(pinSensorA, INPUT);
-    pinMode(pinSensorB, INPUT);
+    // Los EMG30 tienen salidas Hall tipo open collector.
+    // En GPIO 26 y 27 sí podemos usar pull-up interno.
+    pinMode(pinSensorA, INPUT_PULLUP);
+    pinMode(pinSensorB, INPUT_PULLUP);
+
     pinMode(pinENA, OUTPUT);
     pinMode(pinIN1, OUTPUT);
     pinMode(pinIN2, OUTPUT);
 
-    attachInterrupt(digitalPinToInterrupt(pinSensorA), encoderISR, CHANGE);
-    attachInterrupt(digitalPinToInterrupt(pinSensorB), encoderISR, CHANGE);
+    estadoAnterior = (digitalRead(pinSensorA) << 1) | digitalRead(pinSensorB);
+
+    attachInterruptArg(digitalPinToInterrupt(pinSensorA), encoderISR, this, CHANGE);
+    attachInterruptArg(digitalPinToInterrupt(pinSensorB), encoderISR, this, CHANGE);
 
     ledcAttach(pinENA, frecuencia, resolucion);
 
-    digitalWrite(pinENA, 0);
-    digitalWrite(pinIN1, 0);
-    digitalWrite(pinIN2, 1); 
+    ledcWrite(pinENA, 0);
+    digitalWrite(pinIN1, LOW);
+    digitalWrite(pinIN2, LOW);
 
     tiempoInicial = millis();
     ti = millis();
 }
 
-void IRAM_ATTR MotorPID::encoderISR() {
-    cambios++;
+void IRAM_ATTR MotorPID::encoderISR(void* arg) {
+    MotorPID* motor = static_cast<MotorPID*>(arg);
+    motor->actualizarEncoder();
+}
+
+void IRAM_ATTR MotorPID::actualizarEncoder() {
+    uint8_t estadoActual = (digitalRead(pinSensorA) << 1) | digitalRead(pinSensorB);
+    uint8_t transicion = (estadoAnterior << 2) | estadoActual;
+
+    int direccion = 0;
+
+    // Decodificación cuadratura
+    if (
+        transicion == 0b1101 ||
+        transicion == 0b0100 ||
+        transicion == 0b0010 ||
+        transicion == 0b1011
+    ) {
+        direccion = 1;
+    }
+    else if (
+        transicion == 0b1110 ||
+        transicion == 0b0111 ||
+        transicion == 0b0001 ||
+        transicion == 0b1000
+    ) {
+        direccion = -1;
+    }
+
+    if (invertirEncoder) {
+        direccion = -direccion;
+    }
+
+    conteoEncoder += direccion;
+    estadoAnterior = estadoActual;
 }
 
 void MotorPID::actualizar() {
@@ -49,56 +100,95 @@ void MotorPID::actualizar() {
 }
 
 void MotorPID::calcularVelocidad() {
-    tiempoInicial = tiempoActual;
-    pv = (1000.0 / intervalo) * cambios * (2.0 * PI / 360.00);
-    cambios = 0;
+    unsigned long ahora = millis();
+    float dt = (ahora - tiempoInicial) / 1000.0;
+
+    if (dt <= 0.0) return;
+
+    tiempoInicial = ahora;
+
+    long deltaConteos = 0;
+
+    noInterrupts();
+    deltaConteos = conteoEncoder;
+    conteoEncoder = 0;
+    interrupts();
+
+    // Velocidad angular en rad/s
+    pv = ((float)deltaConteos / COUNTS_PER_REV) * (2.0 * PI) / dt;
 }
 
 void MotorPID::ejecutarPID() {
     ti = millis();
 
+    // Si la referencia es cero, apagamos el motor y limpiamos memoria del PID.
+    if (abs(setPoint) < 0.01) {
+        ledcWrite(pinENA, 0);
+        digitalWrite(pinIN1, LOW);
+        digitalWrite(pinIN2, LOW);
+
+        cv = 0.0;
+        cvAnterior = 0.0;
+        error = 0.0;
+        error1 = 0.0;
+        error2 = 0.0;
+
+        return;
+    }
+
     error = setPoint - pv;
 
-    // Ecuación de diferencias del PID
-    cv = cvAnterior + (kp + kd / ts) * error + (-kp + ki * ts - 2 * kd / ts) * error1 + (kd / ts) * error2;
+    cv = cvAnterior
+       + (kp + kd / ts) * error
+       + (-kp + ki * ts - 2.0 * kd / ts) * error1
+       + (kd / ts) * error2;
+
+    if (cv > 500.0) cv = 500.0;
+    if (cv < -500.0) cv = -500.0;
 
     cvAnterior = cv;
     error2 = error1;
     error1 = error;
 
-    // Límites de saturación del control
-    if (cv > 500.00) cv = 500.00;
-    if (cv < -500.00) cv = -500.00; // Se permite valor negativo si el motor cambia de sentido
-
-    // Control de apagado total si la referencia es cero
-    if (setPoint == 0.0f) {
-        ledcWrite(pinENA, 0);
-        digitalWrite(pinIN1, 0);
-        digitalWrite(pinIN2, 0);
-    } else {
-        int16_t wc = ajustarDireccionYEscalar(cv);
-        ledcWrite(pinENA, wc);
-    }
+    int16_t pwm = ajustarDireccionYEscalar(cv);
+    ledcWrite(pinENA, pwm);
 }
 
 int16_t MotorPID::ajustarDireccionYEscalar(float omega) {
-    float pwm;
-    
-    // Cambia el giro del puente H basándose en el signo del valor correctivo omega
-    if (omega >= 0.0f) {
-        digitalWrite(pinIN1, 1);
-        digitalWrite(pinIN2, 0);
-        pwm = (omega - (-23.2700809430)) / 0.1757770768;
+    float pwm = 0.0;
+    float magnitud = abs(omega);
+
+    if (magnitud < 1.0) {
+        digitalWrite(pinIN1, LOW);
+        digitalWrite(pinIN2, LOW);
+        return 0;
+    }
+
+    bool sentidoPositivo = omega >= 0.0;
+
+    if (invertirSalida) {
+        sentidoPositivo = !sentidoPositivo;
+    }
+
+    if (sentidoPositivo) {
+        digitalWrite(pinIN1, HIGH);
+        digitalWrite(pinIN2, LOW);
+
+        // Modelo positivo que ya tenías
+        pwm = (magnitud - (-23.2700809430)) / 0.1757770768;
+
         if (pwm < 140) pwm = 140;
     } else {
-        digitalWrite(pinIN1, 0);
-        digitalWrite(pinIN2, 1);
-        omega = abs(omega); // Se extrae la magnitud para el mapeo matemático
-        pwm = (omega - 24.2606930126) / 0.1797019906;
+        digitalWrite(pinIN1, LOW);
+        digitalWrite(pinIN2, HIGH);
+
+        // Modelo negativo que ya tenías
+        pwm = (magnitud - 24.2606930126) / 0.1797019906;
+
         if (pwm < 140) pwm = 140;
     }
-    
-    return (int16_t) round(constrain(pwm, 0, 255));
+
+    return (int16_t)round(constrain(pwm, 0, 255));
 }
 
 void MotorPID::imprimir() {
@@ -106,14 +196,15 @@ void MotorPID::imprimir() {
     Serial.print(setPoint);
     Serial.print(", PV:");
     Serial.print(pv);
+    Serial.print(", CV:");
+    Serial.print(cv);
     Serial.print(", m:");
-    Serial.print(-200);      
+    Serial.print(-200);
     Serial.print(", M:");
-    Serial.print(200);   
+    Serial.print(200);
     Serial.println();
 }
 
-// Implementación corregida usando el operador de resolución de ámbito de la clase
 void MotorPID::setSetPoint(float sp) {
     setPoint = sp;
 }
