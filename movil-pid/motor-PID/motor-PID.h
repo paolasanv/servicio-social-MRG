@@ -14,7 +14,7 @@ private:
     bool invertirEncoder = false;
     bool invertirSalida = false;
 
-    unsigned long intervalo = 100;
+    unsigned long intervalo = 30;
     unsigned long tiempoInicial = 0;
     unsigned long tiempoActual = 0;
 
@@ -48,7 +48,6 @@ private:
     void calcularVelocidad();
     void ejecutarPID();
     int16_t ajustarDireccionYEscalar(float omega);
-    void imprimir();
 
 public:
     MotorPID(
@@ -67,6 +66,7 @@ public:
     void begin();
     void actualizar();
     void setSetPoint(float sp);
+    void imprimir();
 };
 
 #endif

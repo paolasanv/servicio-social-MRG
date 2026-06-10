@@ -7,36 +7,32 @@ import sys
 # ======================================================
 # CONFIGURACIÓN UDP
 # ======================================================
-UDP_IP = "192.168.0.102"   # IP de tu ESP32
-UDP_PORT = 12345             # Puerto UDP de escucha en ESP32
+# Esta debe ser la IP fija que asignaremos a la ESP32
+UDP_IP = "192.168.0.100"
+UDP_PORT = 12345
 
 # ======================================================
 # PARÁMETROS DEL ROBOT DIFERENCIAL
 # ======================================================
-R = 0.05   # Radio de rueda en metros
-L = 0.20   # Distancia entre ruedas en metros
+R = 0.05
+L = 0.20
 
 # ======================================================
 # VELOCIDADES MÁXIMAS
 # ======================================================
-V_MAX = 1.00  # Velocidad lineal máxima en m/s
-W_MAX = 1.00   # Velocidad angular máxima en rad/s
+V_MAX = 0.2
+W_MAX = 1.0
 
 # ======================================================
 # CONFIGURACIÓN DEL CONTROL XBOX
 # ======================================================
-AXIS_V = 1     # Stick izquierdo eje Y
-AXIS_W = 3     # Stick derecho eje X
+AXIS_V = 1
+AXIS_W = 3
 
 DEADZONE = 0.12
-SEND_PERIOD = 0.10   # 100 ms, coincide con tu PID Ts = 0.100 s
+SEND_PERIOD = 0.10
 
-# Si el robot avanza hacia atrás al empujar el stick hacia adelante,
-# cambia este valor a -1.
 SIGNO_V = 1.0
-
-# Si el robot gira al lado contrario,
-# cambia este valor a -1.
 SIGNO_W = 1.0
 
 
@@ -93,7 +89,7 @@ def main():
     print(" Control diferencial con Xbox")
     print("=====================================")
     print(f"Control detectado: {joystick.get_name()}")
-    print(f"ESP32 IP: {UDP_IP}")
+    print(f"IP fija de la ESP32: {UDP_IP}")
     print(f"Puerto UDP: {UDP_PORT}")
     print()
     print("Stick izquierdo Y: avanzar / retroceder")
@@ -115,26 +111,20 @@ def main():
                 if event.type == pygame.QUIT:
                     running = False
 
-            # Lectura de sticks
             raw_v = -joystick.get_axis(AXIS_V)
             raw_w = joystick.get_axis(AXIS_W)
 
-            # Zona muerta
             raw_v = aplicar_deadzone(raw_v, DEADZONE)
             raw_w = aplicar_deadzone(raw_w, DEADZONE)
 
-            # Escalamiento
             v = SIGNO_V * raw_v * V_MAX
             w = SIGNO_W * raw_w * W_MAX
 
-            # Seguridad por saturación
             v = limitar(v, -V_MAX, V_MAX)
             w = limitar(w, -W_MAX, W_MAX)
 
-            # Cinemática diferencial
             v_r, v_l = calcular_velocidades_ruedas(v, w)
 
-            # Enviar cada 100 ms
             ahora = time.time()
 
             if ahora - ultimo_envio >= SEND_PERIOD:

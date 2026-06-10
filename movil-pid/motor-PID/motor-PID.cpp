@@ -95,7 +95,7 @@ void MotorPID::actualizar() {
 
     if ((millis() - ti) >= (ts * 1000)) {
         ejecutarPID();
-        imprimir();
+       // imprimir();
     }
 }
 
@@ -116,6 +116,9 @@ void MotorPID::calcularVelocidad() {
 
     // Velocidad angular en rad/s
     pv = ((float)deltaConteos / COUNTS_PER_REV) * (2.0 * PI) / dt;
+
+    Serial.print("deltaConteos = ");
+    Serial.println(deltaConteos);
 }
 
 void MotorPID::ejecutarPID() {
