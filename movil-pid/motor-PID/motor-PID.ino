@@ -1,13 +1,15 @@
 /*
- * Control de dos motores EMG30 con ESP32 + L298N + UDP
+ * Control de robot diferencial con ESP32 + L298N + EMG30
+ * Control de velocidad con:
  *
- * Recibe velocidades angulares desde Python en formato:
+ * PWM = PWM_calibrado(SP) + PID(SP - PV)
  *
+ * Entrada UDP:
  * velA,velB
  *
- * Ejemplo:
+ * Ejemplos:
  * 5.0,5.0
- * -5.0,5.0
+ * 8.0,-8.0
  * 0.0,0.0
  */
 
@@ -16,38 +18,32 @@
 #include "motor-PID.h"
 
 // ======================================================
-// CONFIGURACIÓN WIFI
+// WIFI
 // ======================================================
+
 const char* ssid = "TP-Link_8960";
 const char* password = "53899736";
 
-// ======================================================
-// CONFIGURACIÓN DE IP FIJA
-// ======================================================
-// IP fija que tendrá la ESP32.
-// Debe ser la misma que se usa en Python.
 IPAddress local_IP(192, 168, 0, 100);
-
-// Puerta de enlace de tu red.
-// Normalmente es la IP del router.
 IPAddress gateway(192, 168, 0, 1);
-
-// Máscara de red.
 IPAddress subnet(255, 255, 255, 0);
-
-// DNS. No es indispensable para UDP local, pero conviene definirlo.
 IPAddress primaryDNS(8, 8, 8, 8);
 IPAddress secondaryDNS(8, 8, 4, 4);
 
 // ======================================================
-// CONFIGURACIÓN UDP
+// UDP
 // ======================================================
+
 WiFiUDP Udp;
 const unsigned int localUdpPort = 12345;
 char incomingPacket[256];
 
+unsigned long ultimoPaqueteUDP = 0;
+const unsigned long TIMEOUT_UDP = 350;
+bool comunicacionActiva = false;
+
 // ======================================================
-// PINES DEL DRIVER L298N
+// PINES L298N
 // ======================================================
 
 // Motor A
@@ -61,7 +57,7 @@ const int IN4 = 33;
 const int ENB = 25;
 
 // ======================================================
-// PINES DE ENCODERS EMG30
+// PINES ENCODERS
 // ======================================================
 
 // Motor A
@@ -73,7 +69,7 @@ const int SENSOR_A_MB = 26;
 const int SENSOR_B_MB = 27;
 
 // ======================================================
-// CONFIGURACIÓN DE SENTIDOS
+// SENTIDOS
 // ======================================================
 
 const bool INVERTIR_ENCODER_A = false;
@@ -82,13 +78,40 @@ const bool INVERTIR_ENCODER_B = false;
 const bool INVERTIR_SALIDA_A = false;
 const bool INVERTIR_SALIDA_B = false;
 
-// Si por montaje mecánico el motor B debe recibir el signo contrario,
-// deja esto en true.
+// Si por montaje mecánico el motor B debe recibir signo contrario
 const bool INVERTIR_COMANDO_MOTOR_B = true;
 
 // ======================================================
-// OBJETOS PID
+// CALIBRACIÓN PWM - VELOCIDAD ANGULAR
 // ======================================================
+//
+// Positivo:
+// omega = 0.1757770768 * PWM - 23.2700809430
+//
+// Negativo:
+// omega = 0.1797019906 * PWM + 24.2606930126
+//
+// PWM mínimo detectado: |PWM| = 140
+//
+
+CalibracionPWM CAL_EMG30_M1 = {
+  0.1757770768,      // mPos
+ -23.2700809430,    // bPos
+  0.1797019906,      // mNeg
+  24.2606930126,     // bNeg
+  140.0              // pwmMinAbs
+};
+
+// Si calibras cada motor por separado, cambia estos valores
+CalibracionPWM CAL_EMG30_M2 = CAL_EMG30_M1;
+
+// ======================================================
+// OBJETOS MOTOR
+// ======================================================
+//
+// Con feedforward, las ganancias iniciales pueden ser menores.
+// CV ahora está en unidades de PWM.
+//
 
 MotorPID motorA(
   SENSOR_A_MA,
@@ -96,11 +119,12 @@ MotorPID motorA(
   ENA,
   IN1,
   IN2,
+  CAL_EMG30_M1,
   INVERTIR_ENCODER_A,
   INVERTIR_SALIDA_A,
-  2.6,    // kP
-  0.8,    // kI
-  0.001   // kD
+  2,    // Kp
+  1,    // Ki
+  0.001  // Kd
 );
 
 MotorPID motorB(
@@ -109,19 +133,19 @@ MotorPID motorB(
   ENB,
   IN3,
   IN4,
+  CAL_EMG30_M2,
   INVERTIR_ENCODER_B,
   INVERTIR_SALIDA_B,
-  2.8,    // kP
-  0.9,    // kI
-  0.001   // kD
+  2,    // Kp
+  1,    // Ki
+  0.001   // Kd
 );
 
 void conectarWiFi() {
   WiFi.mode(WIFI_STA);
 
-  // Configurar IP fija antes de iniciar WiFi
   if (!WiFi.config(local_IP, gateway, subnet, primaryDNS, secondaryDNS)) {
-    Serial.println("Error: no se pudo configurar la IP fija.");
+    Serial.println("Error configurando IP fija.");
   }
 
   WiFi.begin(ssid, password);
@@ -134,16 +158,75 @@ void conectarWiFi() {
   }
 
   Serial.println();
-  Serial.println("WiFi conectado correctamente.");
+  Serial.println("WiFi conectado.");
 
-  Serial.print("IP de la ESP32: ");
+  Serial.print("IP ESP32: ");
   Serial.println(WiFi.localIP());
+}
 
-  Serial.print("Puerta de enlace: ");
-  Serial.println(WiFi.gatewayIP());
+void detenerRobot() {
+  motorA.setSetPoint(0.0);
+  motorB.setSetPoint(0.0);
+  motorA.detener();
+  motorB.detener();
+}
 
-  Serial.print("Máscara de red: ");
-  Serial.println(WiFi.subnetMask());
+void recibirUDP() {
+  int packetSize = Udp.parsePacket();
+
+  if (!packetSize) {
+    return;
+  }
+
+  int len = Udp.read(incomingPacket, 255);
+
+  if (len > 0) {
+    incomingPacket[len] = '\0';
+  } else {
+    return;
+  }
+
+  float velA = 0.0;
+  float velB = 0.0;
+
+  int datos = sscanf(incomingPacket, " %f , %f", &velA, &velB);
+
+  if (datos == 2) {
+    if (INVERTIR_COMANDO_MOTOR_B) {
+      velB = -velB;
+    }
+
+    motorA.setSetPoint(velA);
+    motorB.setSetPoint(velB);
+
+    ultimoPaqueteUDP = millis();
+    comunicacionActiva = true;
+
+    Serial.print("UDP recibido -> Motor A: ");
+    Serial.print(velA, 2);
+    Serial.print(" rad/s | Motor B: ");
+    Serial.print(velB, 2);
+    Serial.println(" rad/s");
+  } else {
+    Serial.print("Formato inválido: ");
+    Serial.println(incomingPacket);
+  }
+}
+
+void imprimirDebug() {
+  static unsigned long tPrint = 0;
+
+  if (millis() - tPrint >= 200) {
+    tPrint = millis();
+
+    Serial.println("****** Motor A ******");
+    motorA.imprimir();
+
+    Serial.println("====== Motor B ======");
+    motorB.imprimir();
+
+    Serial.println();
+  }
 }
 
 void setup() {
@@ -151,86 +234,48 @@ void setup() {
   delay(1000);
 
   Serial.println();
-  Serial.println("=====================================");
-  Serial.println(" Control UDP para motores EMG30");
-  Serial.println(" ESP32 + L298N + Encoder cuadratura");
-  Serial.println(" IP fija habilitada");
-  Serial.println("=====================================");
+  Serial.println("=======================================");
+  Serial.println(" Control EMG30 con Feedforward + PID");
+  Serial.println(" ESP32 + L298N + UDP");
+  Serial.println("=======================================");
 
   motorA.begin();
   motorB.begin();
+
+  // No empieces con 21 rad/s en suelo.
+  // Para pruebas iniciales es más seguro limitar a 12 rad/s.
+  motorA.setMaxSetPoint(12.0);
+  motorB.setMaxSetPoint(12.0);
 
   conectarWiFi();
 
   Udp.begin(localUdpPort);
 
-  Serial.print("Escuchando UDP en puerto: ");
+  Serial.print("Escuchando UDP en puerto ");
   Serial.println(localUdpPort);
-  Serial.println("Formato esperado: velA,velB");
-  Serial.println("Ejemplo: 5.0,5.0");
+
+  detenerRobot();
 }
 
 void loop() {
-  // Si se cae la conexión WiFi, intentar reconectar
   if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("WiFi desconectado. Deteniendo motores e intentando reconectar...");
-
-    motorA.setSetPoint(0.0);
-    motorB.setSetPoint(0.0);
+    Serial.println("WiFi desconectado. Deteniendo robot...");
+    detenerRobot();
 
     conectarWiFi();
     Udp.begin(localUdpPort);
   }
 
-  int packetSize = Udp.parsePacket();
+  recibirUDP();
 
-  if (packetSize) {
-    int len = Udp.read(incomingPacket, 255);
-
-    if (len > 0) {
-      incomingPacket[len] = '\0';
-    }
-
-    String strPacket = String(incomingPacket);
-    strPacket.trim();
-
-    Serial.print("UDP recibido: ");
-    Serial.println(strPacket);
-
-    int sepIndex = strPacket.indexOf(',');
-
-    if (sepIndex > 0) {
-      String part1 = strPacket.substring(0, sepIndex);
-      String part2 = strPacket.substring(sepIndex + 1);
-
-      part1.trim();
-      part2.trim();
-
-      float velA = part1.toFloat();
-      float velB = part2.toFloat();
-
-      if (INVERTIR_COMANDO_MOTOR_B) {
-        velB = -velB;
-      }
-
-      motorA.setSetPoint(velA);
-      motorB.setSetPoint(velB);
-
-      Serial.print("SetPoint Motor A: ");
-      Serial.print(velA);
-      Serial.print(" rad/s | SetPoint Motor B: ");
-      Serial.print(velB);
-      Serial.println(" rad/s");
-
-    } else {
-      Serial.println("Formato inválido. Usa: velA,velB");
-    }
+  if (comunicacionActiva && (millis() - ultimoPaqueteUDP > TIMEOUT_UDP)) {
+    Serial.println("Timeout UDP. Deteniendo robot.");
+    detenerRobot();
+    comunicacionActiva = false;
   }
 
   motorA.actualizar();
   motorB.actualizar();
 
-  // Para depuración puedes activar:
-  // motorA.imprimir();
-  // motorB.imprimir();
+  imprimirDebug();
 }
