@@ -16,7 +16,7 @@
 #endif
 
 // ---------------- Pines y parametros ----------------
-const uint8_t ENA = 19, IN1 = 26, IN2 = 27, ENC_A = 15, ENC_B = 4;
+const uint8_t ENA = 25, IN1 = 33, IN2 = 32, ENC_A = 26, ENC_B = 27;
 const float CPR = 360.0f;       // verificar con una vuelta manual
 const int8_t SIGNO_ENCODER = -1; // cambiar a -1 si el signo sale invertido
       
