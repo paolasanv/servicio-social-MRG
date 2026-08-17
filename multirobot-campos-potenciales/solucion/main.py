@@ -29,29 +29,29 @@ controlador = Controlador()
 # LOOP PRINCIPAL
 # ========================
 
-def ejecutar(self):
+def ejecutar():
     ultimo_envio_protegido = 0
     #ultimo_envio_atacante = 0
     try:
-        while self.control_xbox.actualizar():
+        while control_xbox.actualizar():
 
            # ==================================================
             # 1) CONTROL DEL ROBOT PROTEGIDO (XBOX)
             # ==================================================
-            v_protegido, w_protegido = (self.control_xbox.leer_velocidades())
-            vr_protegido, vl_protegido = (self.robot_protegido.calcular_velocidades_ruedas(v_protegido,w_protegido))
+            v_protegido, w_protegido = (control_xbox.leer_velocidades())
+            vr_protegido, vl_protegido = (robot_protegido.calcular_velocidades_ruedas(v_protegido,w_protegido))
 
 
             ahora = time.time()
 
             if ahora - ultimo_envio_protegido >= SEND_PERIOD:
-                self.robot_protegido.enviar_velocidades(vl_protegido, vr_protegido)
+                robot_protegido.enviar_velocidades(vl_protegido, vr_protegido)
                 ultimo_envio_protegido = ahora
 
             # ==================================================
             # 2) VISIÓN ARUCO
             # ==================================================
-            frame, poses = (self.vision.obtener_poses())
+            frame, poses = (vision.obtener_poses())
 
             # ==================================================
             # 3) CONTROL DEL ROBOT ATACANTE
@@ -61,16 +61,16 @@ def ejecutar(self):
                 #robot_atacante_pose = poses[2]
                 #robot_protegido_pose = poses[1]
 
-                #v_atacante, w_atacante = (self.controlador.control_potencial(robot_atacante_pose, robot_protegido_pose))
-                #vr_atacante, vl_atacante = (self.robot_atacante.calcular_velocidades_ruedas(v_atacante, w_atacante))
+                #v_atacante, w_atacante = (controlador.control_potencial(robot_atacante_pose, robot_protegido_pose))
+                #vr_atacante, vl_atacante = (robot_atacante.calcular_velocidades_ruedas(v_atacante, w_atacante))
 
                 #if ahora - ultimo_envio_atacante >= SEND_PERIOD:
-                #    self.robot_atacante.enviar_velocidades(vr_atacante,vl_atacante)
+                #    robot_atacante.enviar_velocidades(vr_atacante,vl_atacante)
                 #    ultimo_envio_atacante = ahora
             
             #else:
                 # Si no hay visión del robot seguidor, detenerlo por seguridad
-                #self.robot_atacante.detener()
+                #robot_atacante.detener()
 
             # ==================================================
             # SALIDA
@@ -83,14 +83,14 @@ def ejecutar(self):
 
     finally:
         print("Deteniendo robots...")
-        self.robot_protegido.detener()
-        self.robot_protegido.cerrar()
+        robot_protegido.detener()
+        robot_protegido.cerrar()
 
-        #self.robot_atacante.detener()
-        #self.robot_atacante.cerrar()
+        #robot_atacante.detener()
+        #robot_atacante.cerrar()
 
-        self.control_xbox.cerrar()
-        self.vision.cerrar()
+        control_xbox.cerrar()
+        vision.cerrar()
 
 
 if __name__ == "__main__":

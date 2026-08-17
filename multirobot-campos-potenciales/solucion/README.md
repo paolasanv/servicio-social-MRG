@@ -17,6 +17,11 @@ El movimiento del robot protegido es establecido de manera manual por un control
 4. Calcular la distancia entre el protegido y el atacante para dibujar un punto en la ventana.
 5. Integrar la lógica del defensor para seguir el punto medio del vector entre el atacante y el protegido. 
 
+## Comandos adicionales
+
+v4l2-ctl --list-devices
+
+source venv/bin/activate
 
  
 

@@ -1,6 +1,5 @@
 # robot_movil.py
 
-
 import socket
 
 from src.config import UDP_PORT, R, L
@@ -20,6 +19,7 @@ class Robot:
     def enviar_velocidades(self, vr, vl):
         mensaje = f"{vr:.3f},{vl:.3f}"
         self.sock.sendto(mensaje.encode(), (self.ip, self.port))
+        print(f"Enviado -> derecha: {vr:+.3f} rad/s | izquierda: {vl:+.3f} rad/s")
 
     def detener(self):
         self.enviar_velocidades(0, 0)
