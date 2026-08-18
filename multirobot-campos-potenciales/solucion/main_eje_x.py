@@ -8,8 +8,8 @@ from src.robot_movil import Robot
 #from src.controlador import Controlador
 
 protegido = Robot("192.168.0.100")
-PROTEGIDO_VEL_LIN = 0.05
-TIEMPO_MOVIMIENTO_PROTEGIDO = 15.0  # segundos
+PROTEGIDO_VEL_LIN = 1
+TIEMPO_MOVIMIENTO_PROTEGIDO = 10.0  # segundos
 #vision = Vision()
 #controlador = Controlador()
 

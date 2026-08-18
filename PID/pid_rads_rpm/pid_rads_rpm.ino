@@ -10,7 +10,7 @@
 #define MOTOR_PWM 19
 
 // Instancia de la clase con los parámetros originales de pid.ino
-MotorPID motor(ENCODER_A, ENCODER_B, MOTOR_IN1, MOTOR_IN2, MOTOR_PWM, 1.5, 3, 0.002);
+MotorPID motor(ENCODER_A, ENCODER_B, MOTOR_IN1, MOTOR_IN2, MOTOR_PWM, 3, 0.5, 0);
 
 void setup() {
     Serial.begin(115200);

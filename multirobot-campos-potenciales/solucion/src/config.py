@@ -42,4 +42,4 @@ SIGNO_W = 1.0
 # TEMPORIZACIÓN
 # ======================================================
 
-SEND_PERIOD = 0.45    # Tiempo entre envíos UDP [s] (original 0.1)
+SEND_PERIOD = 0.1    # Tiempo entre envíos UDP [s] (original 0.1)

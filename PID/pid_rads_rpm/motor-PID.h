@@ -63,7 +63,7 @@ private:
     // Control de tiempo y parámetros de control
     //unsigned long lastTime = 0;
     double Ts = 0.1;               // Tiempo de muestreo de 0.1s (100ms)
-    const int dead_zone = 65;      // Zona muerta
+    const int dead_zone = 68;      // Zona muerta
 };
 
 #endif

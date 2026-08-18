@@ -47,98 +47,49 @@ bool comunicacionActiva = false;
 // ======================================================
 
 // Motor A (izquierda)
-const int IN1 = 32; // 18;
-const int IN2 = 33; // 19;
-const int ENA = 25; // 5;
+const int IN1 = 32; 
+const int IN2 = 33; 
+const int ENA = 25; 
 
 // Motor B (derecha)
-const int IN3 = 18; //32;
-const int IN4 = 19; // 33;
-const int ENB = 5; //25;
+const int IN3 = 18; 
+const int IN4 = 19; 
+const int ENB = 5; 
 
 // ======================================================
 // PINES ENCODERS
 // ======================================================
 
 // Motor A (izquierda)
-const int SENSOR_A_MA = 26;//16;
-const int SENSOR_B_MA = 27; //17;
+const int SENSOR_A_MA = 26;
+const int SENSOR_B_MA = 27;
 
 // Motor B (derecha)
-const int SENSOR_A_MB = 16;//26;
-const int SENSOR_B_MB = 17; //27;
-
-// ======================================================
-// SENTIDOS
-// ======================================================
-
-//Avance correcto
-const bool INVERTIR_ENCODER_A = false;
-const bool INVERTIR_ENCODER_B = false;
-
-const bool INVERTIR_SALIDA_A = false;  
-const bool INVERTIR_SALIDA_B = false;
-
-// Si por montaje mecánico el motor B debe recibir signo contrario
-const bool INVERTIR_COMANDO_MOTOR_B = false;
-
-// ======================================================
-// CALIBRACIÓN PWM - VELOCIDAD ANGULAR
-// ======================================================
-//
-// Positivo:
-// omega = 0.1757770768 * PWM - 23.2700809430
-//
-// Negativo:
-// omega = 0.1797019906 * PWM + 24.2606930126
-//
-// PWM mínimo detectado: |PWM| = 140
-//
-
-CalibracionPWM CAL_EMG30_M1 = {
-  0.1757770768,      // mPos
- -23.2700809430,    // bPos
-  0.1797019906,      // mNeg
-  24.2606930126,     // bNeg
-  140.0              // pwmMinAbs
-};
-
-// Si calibras cada motor por separado, cambia estos valores
-CalibracionPWM CAL_EMG30_M2 = CAL_EMG30_M1;
+const int SENSOR_A_MB = 16;
+const int SENSOR_B_MB = 17; 
 
 // ======================================================
 // OBJETOS MOTOR
 // ======================================================
-//
-// Con feedforward, las ganancias iniciales pueden ser menores.
-// CV ahora está en unidades de PWM.
-//
-
 MotorPID motorA(
   SENSOR_A_MA,
   SENSOR_B_MA,
-  ENA,
-  IN1,
   IN2,
-  CAL_EMG30_M1,
-  INVERTIR_ENCODER_A,
-  INVERTIR_SALIDA_A,
-  2,    // Kp
-  1,    // Ki
+  IN1,
+  ENA,
+  1.2,    // Kp
+  2.85,    // Ki
   0.001  // Kd
 );
 
 MotorPID motorB(
   SENSOR_A_MB,
   SENSOR_B_MB,
-  ENB,
   IN3,
   IN4,
-  CAL_EMG30_M2,
-  INVERTIR_ENCODER_B,
-  INVERTIR_SALIDA_B,
-  2.5,    // Kp
-  1,    // Ki
+  ENB,
+  1.2,    // Kp
+  2.85,    // Ki
   0.001  // Kd
 );
 
@@ -166,8 +117,8 @@ void conectarWiFi() {
 }
 
 void detenerRobot() {
-  motorA.setSetPoint(0.0);
-  motorB.setSetPoint(0.0);
+  motorA.setSetpoint(0.0);
+  motorB.setSetpoint(0.0);
   motorA.detener();
   motorB.detener();
 }
@@ -193,12 +144,8 @@ void recibirUDP() {
   int datos = sscanf(incomingPacket, " %f , %f", &velA, &velB);
 
   if (datos == 2) {
-    if (INVERTIR_COMANDO_MOTOR_B) {
-      velB = -velB;
-    }
-
-    motorA.setSetPoint(velA);
-    motorB.setSetPoint(velB);
+    motorA.setSetpoint(velA * (60.0 / (2.0 * M_PI)));
+    motorB.setSetpoint(velB * (60.0 / (2.0 * M_PI)));
 
     ultimoPaqueteUDP = millis();
     comunicacionActiva = true;
@@ -221,10 +168,10 @@ void imprimirDebug() {
     tPrint = millis();
 
     Serial.println("****** Motor A ******");
-    motorA.imprimir();
+    motorA.imprimirDatos();
 
     Serial.println("====== Motor B ======");
-    motorB.imprimir();
+    motorB.imprimirDatos();
 
     Serial.println();
   }
@@ -242,11 +189,6 @@ void setup() {
 
   motorA.begin();
   motorB.begin();
-
-  // No empieces con 21 rad/s en suelo.
-  // Para pruebas iniciales es más seguro limitar a 12 rad/s.
-  motorA.setMaxSetPoint(12.0);
-  motorB.setMaxSetPoint(12.0);
 
   conectarWiFi();
 
@@ -277,6 +219,5 @@ void loop() {
 
   motorA.actualizar();
   motorB.actualizar();
-
   imprimirDebug();
 }

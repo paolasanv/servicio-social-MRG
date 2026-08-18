@@ -77,8 +77,8 @@ MotorPID motorA(
   IN2,
   IN1,
   ENA,
-  1.2,    // Kp
-  2.85,    // Ki
+  2,    // Kp
+  2.95,    // Ki
   0.001  // Kd
 );
 
@@ -88,8 +88,8 @@ MotorPID motorB(
   IN3,
   IN4,
   ENB,
-  1.2,    // Kp
-  2.85,    // Ki
+  2,    // Kp
+  2.95,    // Ki
   0.001  // Kd
 );
 
