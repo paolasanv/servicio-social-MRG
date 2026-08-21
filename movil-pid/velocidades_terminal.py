@@ -18,7 +18,7 @@ L = 0.20   # Distancia entre ruedas [m]
 # SEGURIDAD
 # ======================================================
 PERIODO_ENVIO = 0.05       # 50 ms -> 20 Hz
-OMEGA_MAX = 12.0           # rad/s, igual al límite sugerido en ESP32
+OMEGA_MAX = 20.0           # rad/s, igual al límite sugerido en ESP32
 
 
 def limitar(valor, minimo, maximo):
