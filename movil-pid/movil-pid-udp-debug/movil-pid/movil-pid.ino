@@ -38,8 +38,14 @@ WiFiUDP Udp;
 const unsigned int localUdpPort = 12345;
 char incomingPacket[256];
 
+// Telemetria UDP hacia la computadora que envia comandos.
+const unsigned int telemetryUdpPort = 12346;
+IPAddress ultimoClienteIP;
+bool clienteUDPConocido = false;
+const unsigned long TELEMETRY_PERIOD_MS = 100;  // 10 Hz
+
 unsigned long ultimoPaqueteUDP = 0;
-const unsigned long TIMEOUT_UDP = 350;
+const unsigned long TIMEOUT_UDP = 750;
 bool comunicacionActiva = false;
 
 const float MAX_WHEEL_RAD_S = 12.0f;
@@ -143,6 +149,11 @@ void recibirUDP() {
     const int packetSize = Udp.parsePacket();
     if (!packetSize) return;
 
+    // Guardamos la IP del equipo que esta mandando los comandos.
+    // La telemetria se devolvera a esa misma computadora por el puerto 12346.
+    ultimoClienteIP = Udp.remoteIP();
+    clienteUDPConocido = true;
+
     const int len = Udp.read(incomingPacket, sizeof(incomingPacket) - 1);
     if (len <= 0) return;
 
@@ -171,6 +182,60 @@ void recibirUDP() {
 
     ultimoPaqueteUDP = millis();
     comunicacionActiva = true;
+}
+
+// ======================================================
+// TELEMETRIA UDP
+// ======================================================
+void enviarTelemetriaUDP() {
+    static unsigned long tTelemetry = 0;
+    const unsigned long now = millis();
+
+    if (!clienteUDPConocido || now - tTelemetry < TELEMETRY_PERIOD_MS) {
+        return;
+    }
+    tTelemetry = now;
+
+    const double spA = motorA.getSetpoint();
+    const double pvA = motorA.getPV();
+    const double spB = motorB.getSetpoint();
+    const double pvB = motorB.getPV();
+
+    const double rpmToRad = 2.0 * M_PI / 60.0;
+
+    const char* modeA = fabs(spA) <= 1e-3
+        ? "STOP"
+        : (motorA.isStarting() ? "START" : "RUN");
+    const char* modeB = fabs(spB) <= 1e-3
+        ? "STOP"
+        : (motorB.isStarting() ? "START" : "RUN");
+
+    // JSON sin ArduinoJson para no agregar dependencias.
+    char telemetry[640];
+    const int n = snprintf(
+        telemetry, sizeof(telemetry),
+        "{\"t_ms\":%lu,\"rssi\":%ld,\"comm\":%d,"
+        "\"A\":{\"sp_rpm\":%.3f,\"pv_rpm\":%.3f,\"sp_rad\":%.3f,\"pv_rad\":%.3f,"
+        "\"err_rpm\":%.3f,\"ff\":%.1f,\"pid\":%.1f,\"pwm\":%.1f,\"mode\":\"%s\"},"
+        "\"B\":{\"sp_rpm\":%.3f,\"pv_rpm\":%.3f,\"sp_rad\":%.3f,\"pv_rad\":%.3f,"
+        "\"err_rpm\":%.3f,\"ff\":%.1f,\"pid\":%.1f,\"pwm\":%.1f,\"mode\":\"%s\"}}",
+        now,
+        static_cast<long>(WiFi.RSSI()),
+        comunicacionActiva ? 1 : 0,
+        spA, pvA, spA * rpmToRad, pvA * rpmToRad,
+        motorA.getErrorRPM(), motorA.getFeedforwardPWM(), motorA.getPIDPWM(), motorA.getOutput(), modeA,
+        spB, pvB, spB * rpmToRad, pvB * rpmToRad,
+        motorB.getErrorRPM(), motorB.getFeedforwardPWM(), motorB.getPIDPWM(), motorB.getOutput(), modeB
+    );
+
+    if (n <= 0 || n >= static_cast<int>(sizeof(telemetry))) {
+        Serial.println("Error construyendo telemetria UDP.");
+        return;
+    }
+
+    Udp.beginPacket(ultimoClienteIP, telemetryUdpPort);
+    Udp.write(reinterpret_cast<const uint8_t*>(telemetry), n);
+    Udp.endPacket();
 }
 
 // ======================================================
@@ -234,8 +299,10 @@ void setup() {
     conectarWiFi();
 
     Udp.begin(localUdpPort);
-    Serial.print("Escuchando UDP en puerto ");
+    Serial.print("Escuchando comandos UDP en puerto ");
     Serial.println(localUdpPort);
+    Serial.print("Telemetria UDP -> puerto ");
+    Serial.println(telemetryUdpPort);
 
     detenerRobot();
 }
@@ -267,5 +334,6 @@ void loop() {
     motorA.actualizar();
     motorB.actualizar();
 
+    enviarTelemetriaUDP();
     imprimirDebug();
 }

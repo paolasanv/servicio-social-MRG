@@ -38,8 +38,14 @@ WiFiUDP Udp;
 const unsigned int localUdpPort = 12345;
 char incomingPacket[256];
 
+// Telemetria UDP hacia la computadora que envia comandos.
+const unsigned int telemetryUdpPort = 12346;
+IPAddress ultimoClienteIP;
+bool clienteUDPConocido = false;
+const unsigned long TELEMETRY_PERIOD_MS = 100;  // 10 Hz
+
 unsigned long ultimoPaqueteUDP = 0;
-const unsigned long TIMEOUT_UDP = 350;
+const unsigned long TIMEOUT_UDP = 750;
 bool comunicacionActiva = false;
 
 const float MAX_WHEEL_RAD_S = 12.0f;
@@ -72,31 +78,52 @@ const int SENSOR_B_MB = 16;
 MotorPID motorA(
     SENSOR_A_MA, SENSOR_B_MA,
     IN2, IN1, ENA,
-    1.5, 1, 0
+    0.5, 0.20, 0
 );
 
 MotorPID motorB(
     SENSOR_A_MB, SENSOR_B_MB,
     IN3, IN4, ENB,
-    1.5, 1, 0
+    0.5, 0.20, 0
 );
 
 // ======================================================
-// CALIBRACION EXPERIMENTAL (M1 aplicada temporalmente a M1 y M2)
+// FEEDFORWARD EXPERIMENTAL EN PISO - POR RUEDA
 // ======================================================
-// Archivo experimental:
-// POSITIVO: omega = 0.1757770768*PWM - 23.2700809430
-// NEGATIVO: omega = 0.1797019906*PWM + 24.2606930126
-// PWM minimo detectado: +/-140
+// Ajustado con telemetria en piso a referencias de 2, 4 y 6 rad/s.
+// El modelo que usa MotorPID es:
+//     omega = a*PWM + b
+// y la clase despeja internamente:
+//     PWM_FF = (omega_d - b)/a
 //
-// SUPOSICION EXPERIMENTAL:
-// Se aplicara temporalmente esta misma calibracion a motorA y motorB,
-// suponiendo que ambos EMG30 tienen comportamiento identico.
-// Cuando se calibre M2, sustituir estos coeficientes por los propios de M2.
-const double M1_A_POS = 0.1757770768;
-const double M1_B_POS = -23.2700809430;
-const double M1_A_NEG = 0.1797019906;
-const double M1_B_NEG = 24.2606930126;
+// GIRO POSITIVO - MOTOR A
+// omega = 0.1537745505*PWM - 12.5123396817
+// R2 ~= 0.984884
+const double A_A_POS = 0.1537745505;
+const double A_B_POS = -12.5123396817;
+//
+// GIRO POSITIVO - MOTOR B
+// omega = 0.1118491640*PWM - 9.6242878099
+// R2 ~= 0.994849
+const double B_A_POS = 0.1118491640;
+const double B_B_POS = -9.6242878099;
+//
+// GIRO NEGATIVO - MODELO PROVISIONAL EN PISO, POR RUEDA
+// Identificado con telemetria de -0.20 y -0.30 m/s.
+// Se usaron muestras RUN posteriores a 5 s y se excluyo
+// el tramo final de frenado de la prueba -0.20 m/s.
+//
+// MOTOR A:
+// omega = 0.0955451842*PWM + 4.8928662071
+// R2 ~= 0.7609
+const double A_A_NEG = 0.0955451842;
+const double A_B_NEG = 4.8928662071;
+//
+// MOTOR B:
+// omega = 0.0844906226*PWM + 5.2012861454
+// R2 ~= 0.7453
+const double B_A_NEG = 0.0844906226;
+const double B_B_NEG = 5.2012861454;
 
 // ======================================================
 // WIFI
@@ -143,6 +170,11 @@ void recibirUDP() {
     const int packetSize = Udp.parsePacket();
     if (!packetSize) return;
 
+    // Guardamos la IP del equipo que esta mandando los comandos.
+    // La telemetria se devolvera a esa misma computadora por el puerto 12346.
+    ultimoClienteIP = Udp.remoteIP();
+    clienteUDPConocido = true;
+
     const int len = Udp.read(incomingPacket, sizeof(incomingPacket) - 1);
     if (len <= 0) return;
 
@@ -171,6 +203,60 @@ void recibirUDP() {
 
     ultimoPaqueteUDP = millis();
     comunicacionActiva = true;
+}
+
+// ======================================================
+// TELEMETRIA UDP
+// ======================================================
+void enviarTelemetriaUDP() {
+    static unsigned long tTelemetry = 0;
+    const unsigned long now = millis();
+
+    if (!clienteUDPConocido || now - tTelemetry < TELEMETRY_PERIOD_MS) {
+        return;
+    }
+    tTelemetry = now;
+
+    const double spA = motorA.getSetpoint();
+    const double pvA = motorA.getPV();
+    const double spB = motorB.getSetpoint();
+    const double pvB = motorB.getPV();
+
+    const double rpmToRad = 2.0 * M_PI / 60.0;
+
+    const char* modeA = fabs(spA) <= 1e-3
+        ? "STOP"
+        : (motorA.isStarting() ? "START" : "RUN");
+    const char* modeB = fabs(spB) <= 1e-3
+        ? "STOP"
+        : (motorB.isStarting() ? "START" : "RUN");
+
+    // JSON sin ArduinoJson para no agregar dependencias.
+    char telemetry[640];
+    const int n = snprintf(
+        telemetry, sizeof(telemetry),
+        "{\"t_ms\":%lu,\"rssi\":%ld,\"comm\":%d,"
+        "\"A\":{\"sp_rpm\":%.3f,\"pv_rpm\":%.3f,\"sp_rad\":%.3f,\"pv_rad\":%.3f,"
+        "\"err_rpm\":%.3f,\"ff\":%.1f,\"pid\":%.1f,\"pwm\":%.1f,\"mode\":\"%s\"},"
+        "\"B\":{\"sp_rpm\":%.3f,\"pv_rpm\":%.3f,\"sp_rad\":%.3f,\"pv_rad\":%.3f,"
+        "\"err_rpm\":%.3f,\"ff\":%.1f,\"pid\":%.1f,\"pwm\":%.1f,\"mode\":\"%s\"}}",
+        now,
+        static_cast<long>(WiFi.RSSI()),
+        comunicacionActiva ? 1 : 0,
+        spA, pvA, spA * rpmToRad, pvA * rpmToRad,
+        motorA.getErrorRPM(), motorA.getFeedforwardPWM(), motorA.getPIDPWM(), motorA.getOutput(), modeA,
+        spB, pvB, spB * rpmToRad, pvB * rpmToRad,
+        motorB.getErrorRPM(), motorB.getFeedforwardPWM(), motorB.getPIDPWM(), motorB.getOutput(), modeB
+    );
+
+    if (n <= 0 || n >= static_cast<int>(sizeof(telemetry))) {
+        Serial.println("Error construyendo telemetria UDP.");
+        return;
+    }
+
+    Udp.beginPacket(ultimoClienteIP, telemetryUdpPort);
+    Udp.write(reinterpret_cast<const uint8_t*>(telemetry), n);
+    Udp.endPacket();
 }
 
 // ======================================================
@@ -211,31 +297,33 @@ void setup() {
     // FRICCION / ARRANQUE
     // --------------------------------------------------
     // Arranque: 155 PWM durante 150 ms para vencer friccion estatica.
-    // Marcha: minimo de 130 PWM, pero sin invertir el sentido del SP.
+    // Marcha: minimo de 60 PWM, pero sin invertir el sentido del SP.
     motorA.setStartupPWM(155.0, 150);
     motorB.setStartupPWM(155.0, 150);
 
     motorA.setRunMinPWM(60.0);
     motorB.setRunMinPWM(60.0);
 
-    // Feedforward experimental aplicado a AMBOS motores.
-    // Motor A = modelo calibrado de M1.
+    // Feedforward independiente por rueda.
+    // Positivo: calibrado con el robot en piso.
+    // Negativo: modelo provisional identificado con pruebas en reversa en piso.
     motorA.setFeedforwardModel(
-        M1_A_POS, M1_B_POS,
-        M1_A_NEG, M1_B_NEG
+        A_A_POS, A_B_POS,
+        A_A_NEG, A_B_NEG
     );
 
-    // Motor B = MISMO modelo de M1, por hipotesis experimental.
     motorB.setFeedforwardModel(
-        M1_A_POS, M1_B_POS,
-        M1_A_NEG, M1_B_NEG
+        B_A_POS, B_B_POS,
+        B_A_NEG, B_B_NEG
     );
 
     conectarWiFi();
 
     Udp.begin(localUdpPort);
-    Serial.print("Escuchando UDP en puerto ");
+    Serial.print("Escuchando comandos UDP en puerto ");
     Serial.println(localUdpPort);
+    Serial.print("Telemetria UDP -> puerto ");
+    Serial.println(telemetryUdpPort);
 
     detenerRobot();
 }
@@ -267,5 +355,6 @@ void loop() {
     motorA.actualizar();
     motorB.actualizar();
 
+    enviarTelemetriaUDP();
     imprimirDebug();
 }

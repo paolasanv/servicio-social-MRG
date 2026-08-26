@@ -1,0 +1,42 @@
+CALIBRACION FEEDFORWARD EN PISO - EMG30
+=======================================
+Fecha de pruebas: 2026-08-25
+PID durante caracterizacion: Kp=0.5, Ki=0.20, Kd=0.0
+
+Datos usados:
+- 2 rad/s: telemetria_robot_20260825_143921_cero_uno.csv
+- 4 rad/s: telemetria_robot_20260825_144138_cero_dos.csv
+- 6 rad/s: telemetria_robot_20260825_144952_cero_tres.csv
+
+Se ajusto omega = a*PWM + b usando promedios de las zonas finales utiles.
+
+MOTOR A - GIRO POSITIVO
+omega = 0.1537745505 * PWM - 12.5123396817
+R2 = 0.984884
+PWM_FF = (omega_d + 12.5123396817) / 0.1537745505
+
+PWM estimado:
+2 rad/s  -> 94.4
+4 rad/s  -> 107.4
+6 rad/s  -> 120.4
+8 rad/s  -> 133.4
+10 rad/s -> 146.4
+12 rad/s -> 159.4
+
+MOTOR B - GIRO POSITIVO
+omega = 0.1118491640 * PWM - 9.6242878099
+R2 = 0.994849
+PWM_FF = (omega_d + 9.6242878099) / 0.1118491640
+
+PWM estimado:
+2 rad/s  -> 103.9
+4 rad/s  -> 121.8
+6 rad/s  -> 139.7
+8 rad/s  -> 157.6
+10 rad/s -> 175.5
+12 rad/s -> 193.3
+
+IMPORTANTE
+- Estos modelos positivos corresponden al robot probado en piso.
+- El punto de 6 rad/s aun presentaba una pequena convergencia, por lo que esta es una primera calibracion de marcha, no una identificacion final.
+- Para reversa se conserva temporalmente el modelo anterior de M1. Debe repetirse la caracterizacion a -2, -4 y -6 rad/s para obtener modelos negativos independientes A/B.

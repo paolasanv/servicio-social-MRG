@@ -316,12 +316,20 @@ double MotorPID::limitar(double value, double minValue, double maxValue) {
 }
 
 void MotorPID::imprimirDatos() {
+    const char* mode = fabs(setpoint) <= ZERO_SETPOINT_EPS
+        ? "STOP"
+        : (startupActive ? "START" : "RUN");
+
     Serial.print("SP:"); Serial.print(setpoint, 3);
     Serial.print(", PV:"); Serial.print(pv, 3);
+    Serial.print(", ERR:"); Serial.print(setpoint - pv, 3);
     Serial.print(", FF:"); Serial.print(lastFeedforwardPWM, 1);
+    Serial.print(", PID:"); Serial.print(CV_Anterior, 1);
     Serial.print(", PWM:"); Serial.print(output, 1);
-    Serial.print(", MODE:"); Serial.print(startupActive ? "START" : "RUN");
+    Serial.print(", MODE:"); Serial.print(mode);
     Serial.print(", PSTART:"); Serial.print(startupPWM, 0);
     Serial.print(", PRUN:"); Serial.print(runMinPWM, 0);
+    Serial.print(", Min:"); Serial.print(-200);
+    Serial.print(", Max:"); Serial.print(200);
     Serial.println();
 }

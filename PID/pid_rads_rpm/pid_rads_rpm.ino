@@ -23,7 +23,8 @@ void loop() {
     double rad_s = map(potVal, 0, 4095, -210, 210) / 10.0; // Ej: -21.0 a 21.0 rad/s
 
     // 2. Asignar la referencia convirtiendo los rad/s en rpm
-    motor.setSetpoint(rad_s * (60.0 / (2.0 * M_PI)));
+    const double rpmA = static_cast<double>(rad_s) * (60.0 / (2.0 * M_PI));
+    motor.setSetpoint(rpmA);
     // 3. Actualizar lectura de encoder y ejecutar el PID si pasaron 100 ms
     motor.actualizar();
     // 4. Salida por puerto serie para Plotter

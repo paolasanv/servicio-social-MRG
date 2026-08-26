@@ -61,6 +61,8 @@ public:
     double getSetpoint() const { return setpoint; }
     double getOutput() const { return output; }
     double getFeedforwardPWM() const { return lastFeedforwardPWM; }
+    double getPIDPWM() const { return CV_Anterior; }
+    double getErrorRPM() const { return setpoint - pv; }
     double getStartupPWM() const { return startupPWM; }
     double getRunMinPWM() const { return runMinPWM; }
     bool isStarting() const { return startupActive; }

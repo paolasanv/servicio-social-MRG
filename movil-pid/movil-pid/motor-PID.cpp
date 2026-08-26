@@ -318,10 +318,12 @@ double MotorPID::limitar(double value, double minValue, double maxValue) {
 void MotorPID::imprimirDatos() {
     Serial.print("SP:"); Serial.print(setpoint, 3);
     Serial.print(", PV:"); Serial.print(pv, 3);
-    Serial.print(", FF:"); Serial.print(lastFeedforwardPWM, 1);
+   /*Serial.print(", FF:"); Serial.print(lastFeedforwardPWM, 1);
     Serial.print(", PWM:"); Serial.print(output, 1);
     Serial.print(", MODE:"); Serial.print(startupActive ? "START" : "RUN");
     Serial.print(", PSTART:"); Serial.print(startupPWM, 0);
-    Serial.print(", PRUN:"); Serial.print(runMinPWM, 0);
+    Serial.print(", PRUN:"); Serial.print(runMinPWM, 0);*/
+    Serial.print(", Min:"); Serial.print(-200);  // Valor mínimo para gráfica
+    Serial.print(", Max:"); Serial.print(200);   // Valor máximo para gráfica
     Serial.println();
 }
