@@ -5,12 +5,12 @@ import numpy as np
 class Controlador:
 
     def __init__(self):
-        self.kv = 0.1
-        self.kw = 0.1
+        self.kv = 0.5
+        self.kw = 0.5
         self.v_max = 3
         self.w_max = 1
         self.k_r = 0.15
-        self.dist_seguridad = 0.50
+        self.dist_seguridad = 0.45
 
         # Movimiento en eje x
         self.direccion = 1

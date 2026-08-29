@@ -21,7 +21,7 @@ L = 0.20          # Distancia entre ruedas [m]
 # VELOCIDADES MÁXIMAS
 # ======================================================
 
-V_MAX = 0.5       # Velocidad lineal máxima [m/s]
+V_MAX = 1.0       # Velocidad lineal máxima [m/s]
 W_MAX = 1.0       # Velocidad angular máxima [rad/s]
 
 
