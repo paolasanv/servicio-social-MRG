@@ -62,7 +62,7 @@ class Vision:
         cv.namedWindow(self.window_name, cv.WINDOW_NORMAL)
         cv.resizeWindow(self.window_name, 1920, 1080)
 
-        #print("Cámara inicializada correctamente.")
+        print("Cámara inicializada correctamente.")
 
     # ==================================================
     # TRANSFORMACIONES

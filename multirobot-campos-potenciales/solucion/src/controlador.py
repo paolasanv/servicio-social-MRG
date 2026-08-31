@@ -5,8 +5,8 @@ import numpy as np
 class Controlador:
 
     def __init__(self):
-        self.kv = 0.5
-        self.kw = 0.5
+        self.kv = 0.9
+        self.kw = 1
         self.v_max = 3
         self.w_max = 1
         self.k_r = 0.15
@@ -33,7 +33,7 @@ class Controlador:
         error = max(0.0, d - self.dist_seguridad)
 
         v = self.kv * min(error, self.k_r)
-        w = self.kw * np.sin(theta_e)
+        w = - self.kw * np.sin(theta_e)
 
         if d <= self.dist_seguridad:
             v = 0
