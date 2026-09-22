@@ -1,6 +1,6 @@
 # Implementación Física de un Sistema Multi-Robot Reactivo Basado en Campos Potenciales
 
-El robot atacante deberá perseguir al robot protegido, mientras que el robot guardaespaldas deberá impedir dinámicamente dicha interacción mediante comportamientos reactivos autónomos. 
+El robot atacante deberá perseguir al robot protegido, mientras que el robot defensor deberá impedir dinámicamente dicha interacción mediante comportamientos reactivos autónomos. 
 
 
 ## Condiciones
