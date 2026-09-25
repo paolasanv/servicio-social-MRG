@@ -20,12 +20,12 @@ TIEMPO_MOVIMIENTO_PROTEGIDO = 30.0  # segundos que permanece avanzando
 
 # ----- atacante -----
 # Robot con ArUco 2 (atacante)
-atacante = Robot("192.168.0.100", 0.5, 1) #kv, kw
+atacante = Robot("192.168.0.100", 0.2, 1) #kv, kw
 # ---------------------
 
 # ----- defensor -----
 # Robot con ArUco 3 (defensor)
-defensor = Robot("192.168.0.101", 0.5, 1) #kv, kw
+defensor = Robot("192.168.0.101", 0.8, 1) #kv, kw
 # ---------------------
 
 # ----- parámetros de control -----
