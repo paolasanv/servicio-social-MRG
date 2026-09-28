@@ -11,11 +11,12 @@ from src.vision import Vision
 
 # ----- protegido -----
 # Robot von ArUco 1 (protegido)
-#protegido = Robot("192.168.0.101", 0.9, 1)
+protegido = Robot("192.168.0.102", 0, 0)  # No aplica campos potenciales ni PID
 
-PROTEGIDO_VEL_LIN = 0.2
+PROTEGIDO_VEL_LIN = 0.05
+PROTEGIDO_VEL_ANG = 0
 TIEMPO_ESPERA_PROTEGIDO = 5.0       # segundos antes de comenzar
-TIEMPO_MOVIMIENTO_PROTEGIDO = 30.0  # segundos que permanece avanzando
+TIEMPO_MOVIMIENTO_PROTEGIDO = 20.0  # segundos que permanece avanzando
 # ----------------------
 
 # ----- atacante -----
@@ -41,7 +42,6 @@ TIMEOUT_MARCADORES = 0.3     # segundos
 # ---------------------------------
 
 vision = Vision()
-#controlador = Controlador()
 
 # ArUco 0 = referencia
 # ArUco 1 = robot protegido
@@ -67,32 +67,36 @@ def ejecutar():
 
             # ESTADO DEL ROBOT PROTEGIDO
             tiempo_transcurrido = time.time() - inicio
-            protegido_avanzar = (tiempo_transcurrido >= TIEMPO_ESPERA_PROTEGIDO and tiempo_transcurrido < ( TIEMPO_ESPERA_PROTEGIDO + TIEMPO_MOVIMIENTO_PROTEGIDO))
 
-            # ==============================================
-            # 1) CONTROL DEL ROBOT PROTEGIDO (esta parte NO es necesaria si SOLO hay ArUco)
-            # ==============================================
-
-            """
-            if protegido_avanzar:
-                vr_protegido, vl_protegido = (protegido.calcular_velocidades_ruedas(PROTEGIDO_VEL_LIN,0))
-
-                if ahora - ultimo_envio_protegido >= SEND_PERIOD:
-                    protegido.enviar_velocidades(vl_protegido, vr_protegido)
-                    ultimo_envio_protegido = ahora
-
-            else:
-                protegido.detener()
-            """
-
-            # Control de los robots atacante y defensor (si ambos están presentes)
-
+            # Camara
             frame, poses, tecla = vision.obtener_poses()
 
             # Se toma el tiempo DESPUÉS de capturar/procesar el frame
             ahora = time.time()
 
-            # protegido_avanzar and
+            # ==============================================
+            # 1) CONTROL DEL ROBOT PROTEGIDO (esta parte NO es necesaria si SOLO hay ArUco)
+            # ==============================================
+
+            # El robot protegido avanza durante TIEMPO_MOVIMIENTO_PROTEGIDO segundos
+            protegido_avanzar = (tiempo_transcurrido >= TIEMPO_ESPERA_PROTEGIDO and tiempo_transcurrido < ( TIEMPO_ESPERA_PROTEGIDO + TIEMPO_MOVIMIENTO_PROTEGIDO))
+            if protegido_avanzar:
+                vr_protegido, vl_protegido = (protegido.calcular_velocidades_ruedas(PROTEGIDO_VEL_LIN,PROTEGIDO_VEL_ANG))
+
+                if ahora - ultimo_envio_protegido >= 4* SEND_PERIOD:
+                    protegido.enviar_velocidades(vl_protegido, vr_protegido)
+                    ultimo_envio_protegido = ahora
+
+            else:
+                protegido.detener()
+            
+
+            # ==============================================
+            #               Algortimo principal
+            # Control del robot atacante y defensor
+            # ==============================================
+
+            # protegido_avanzar and (*variable a considerar si solo queremos que el experimento dure una determinada cantidad de segundos*)
             if (1 in poses and 2 in poses and 3 in poses):
                 ultima_vista = ahora
 
@@ -146,17 +150,15 @@ def ejecutar():
                     atacante.detener()
                     defensor.detener()
                     ultimo_envio = ahora
+            
 
     except KeyboardInterrupt:
         print("\nInterrupción por teclado.")
 
     finally:
         print("Deteniendo robots...")
-        #protegido.detener()
-        #protegido.cerrar()
-
         # Primero detener (varias veces, UDP no garantiza entrega) y luego cerrar el socket
-        for robot in (atacante, defensor):
+        for robot in (atacante, defensor, atacante):
             try:
                 for _ in range(3):
                     robot.detener()

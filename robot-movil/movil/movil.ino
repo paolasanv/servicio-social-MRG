@@ -2,36 +2,40 @@
 #include <WiFiUdp.h>
 
 // Configuración de red WiFi
-const char* ssid = "MiRedWifi";         // ← Cambia esto
-const char* password = "123456789"; // ← Cambia esto
+const char* ssid = "TP-Link_8960";         // ← Cambia esto
+const char* password = "53899736"; // ← Cambia esto
 
 // Configuración de UDP
 WiFiUDP Udp;
 const unsigned int localUdpPort = 12345;
-char incomingPacket[255];  // Buffer para almacenar los paquetes UDP
-String data = "";          // Variable para almacenar los datos recibidos
+char incomingPacket[255];
 
-// Pines de los motores (ajústalos si usas un driver distinto)
-const int IN1 = 18;
-const int IN2 = 19;
-const int IN3 = 32;
-const int IN4 = 33;
-const int ENA = 5;
-const int ENB = 25;
+// Pines de los motores
+const int IN1 = 32;
+const int IN2 = 33;
+const int ENA = 25;
+const int IN3 = 19;
+const int IN4 = 18;
+const int ENB = 5;
 
-const int PWM_MAX = 255;   // Valor máximo de PWM
-const float maxSpeed = 100.0; // Velocidad máxima esperada desde UDP
+// Configuración PWM (LEDC)
+const int PWM_FREQ = 1000;   // 1 kHz
+const int PWM_RES  = 8;      // 8 bits -> 0..255
+const int PWM_MAX  = (1 << PWM_RES) - 1;
+const float maxSpeed = 100.0;
 
 void setup() {
   Serial.begin(115200);
 
-  // Configura pines de motor
+  // Pines de dirección
   pinMode(IN1, OUTPUT);
   pinMode(IN2, OUTPUT);
   pinMode(IN3, OUTPUT);
   pinMode(IN4, OUTPUT);
-  pinMode(ENA, OUTPUT);
-  pinMode(ENB, OUTPUT);
+
+  // Pines de enable con PWM por LEDC (ya no se usa pinMode para ENA/ENB)
+  ledcAttach(ENA, PWM_FREQ, PWM_RES);
+  ledcAttach(ENB, PWM_FREQ, PWM_RES);
 
   // Conecta a Wi-Fi
   WiFi.begin(ssid, password);
@@ -44,38 +48,34 @@ void setup() {
   Serial.print("IP: ");
   Serial.println(WiFi.localIP());
 
-  // Inicia UDP
   Udp.begin(localUdpPort);
   Serial.print("Esperando mensajes en el puerto UDP: ");
   Serial.println(localUdpPort);
 }
 
 void loop() {
-  // Revisa si hay datos entrantes en UDP
   int packetSize = Udp.parsePacket();
   if (packetSize) {
-    // Lee el paquete UDP
-    int len = Udp.read(incomingPacket, 255);
+    int len = Udp.read(incomingPacket, sizeof(incomingPacket) - 1);
     if (len > 0) {
-      incomingPacket[len] = 0; // Asegura que la cadena se termine
+      incomingPacket[len] = 0;
     }
 
-    // Muestra el paquete recibido
     Serial.print("Mensaje UDP recibido: ");
     Serial.println(incomingPacket);
 
-    // Procesa los datos (se espera un formato tipo "v1,v2")
-    int sepIndex = String(incomingPacket).indexOf(',');
+    String msg = String(incomingPacket);
+    int sepIndex = msg.indexOf(',');
     if (sepIndex > 0) {
-      float vel1 = String(incomingPacket).substring(0, sepIndex).toFloat();
-      float vel2 = String(incomingPacket).substring(sepIndex + 1).toFloat();
+      float vel1 = msg.substring(0, sepIndex).toFloat();
+      float vel2 = msg.substring(sepIndex + 1).toFloat();
       moverMotor(vel1, IN1, IN2, ENA);
       moverMotor(-vel2, IN3, IN4, ENB);
+      Serial.println("Velocidades recibidas");
     }
   }
 }
 
-// Función para mover los motores según las velocidades recibidas
 void moverMotor(float vel, int in1, int in2, int pwmPin) {
   int pwm = min((int)(abs(vel) / maxSpeed * PWM_MAX), PWM_MAX);
 
@@ -90,5 +90,5 @@ void moverMotor(float vel, int in1, int in2, int pwmPin) {
     digitalWrite(in2, LOW);
   }
 
-  analogWrite(pwmPin, pwm); // Usa ledcWrite si estás en ESP32 moderno
+  ledcWrite(pwmPin, pwm);
 }

@@ -25,7 +25,7 @@
 const char* ssid = "TP-Link_8960";
 const char* password = "53899736";
 
-IPAddress local_IP(192, 168, 0, 100);
+IPAddress local_IP(192, 168, 0, 101);
 IPAddress gateway(192, 168, 0, 1);
 IPAddress subnet(255, 255, 255, 0);
 IPAddress primaryDNS(8, 8, 8, 8);
