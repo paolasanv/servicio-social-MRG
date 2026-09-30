@@ -219,7 +219,6 @@ class Robot:
     # ======================================================
     # DEFENSOR: meta = punto medio, obstáculos = protegido y atacante
     # ======================================================
-
     def control_potencial_defensor(self, xr, yr, theta_r,
                                    objetivo_x, objetivo_y,
                                    protegido_x, protegido_y,
