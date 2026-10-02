@@ -1,7 +1,5 @@
 # config.py
 
-
-
 # ======================================================
 # CONFIGURACIÓN UDP
 # ======================================================
@@ -23,19 +21,6 @@ L = 0.20          # Distancia entre ruedas [m]
 
 V_MAX = 1.0       # Velocidad lineal máxima [m/s]
 W_MAX = 1.0       # Velocidad angular máxima [rad/s]
-
-
-# ======================================================
-# CONFIGURACIÓN DEL CONTROL XBOX
-# ======================================================
-
-AXIS_V = 1        # Stick izquierdo Y
-AXIS_W = 3        # Stick derecho X
-
-DEADZONE = 0.12
-
-SIGNO_V = 1.0
-SIGNO_W = 1.0
 
 
 # ======================================================

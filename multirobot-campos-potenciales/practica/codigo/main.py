@@ -6,16 +6,16 @@ from src.config import SEND_PERIOD
 from src.robot_movil import Robot
 from src.vision import Vision
 
-#direcciones IP = 192.168.0.101 (caiman verde y blanco), 192.168.0.100 (caimanes amarillos)
-
 # ----- protegido -----
+"""
 # Robot von ArUco 1 (protegido)
-#protegido = Robot("192.168.0.102", 0, 0)  # No aplica campos potenciales ni PID
+protegido = Robot("192.168.0.102", 0, 0)  # No aplica campos potenciales ni PID
 
 PROTEGIDO_VEL_LIN = 0.05
 PROTEGIDO_VEL_ANG = 0
-#TIEMPO_ESPERA_PROTEGIDO = 0.0       # segundos antes de comenzar
-#TIEMPO_MOVIMIENTO_PROTEGIDO = 45.0  # segundos que permanece avanzando
+TIEMPO_ESPERA_PROTEGIDO = 0.0       # segundos antes de comenzar
+TIEMPO_MOVIMIENTO_PROTEGIDO = 45.0  # segundos que permanece avanzando
+"""
 # ----------------------
 
 # ----- atacante -----
@@ -64,9 +64,6 @@ def ejecutar():
             if tecla == ord('q'):
                 break
 
-            # ESTADO DEL ROBOT PROTEGIDO
-            #tiempo_transcurrido = time.time() - inicio
-
             # Camara
             frame, poses, tecla = vision.obtener_poses()
 
@@ -74,9 +71,12 @@ def ejecutar():
             ahora = time.time()
 
             # ==============================================
-            # 1) CONTROL DEL ROBOT PROTEGIDO (esta parte NO es necesaria si SOLO hay ArUco)
+            # 1) CONTROL DEL ROBOT PROTEGIDO (version donde el robot avanza determinada cantidad de segundos)
             # ==============================================
             """"
+	    # ESTADO DEL ROBOT PROTEGIDO
+            #tiempo_transcurrido = time.time() - inicio
+
             # El robot protegido avanza durante TIEMPO_MOVIMIENTO_PROTEGIDO segundos
             protegido_avanzar = (tiempo_transcurrido >= TIEMPO_ESPERA_PROTEGIDO and tiempo_transcurrido < ( TIEMPO_ESPERA_PROTEGIDO + TIEMPO_MOVIMIENTO_PROTEGIDO))
             if protegido_avanzar:
@@ -95,7 +95,6 @@ def ejecutar():
             # Control del robot atacante y defensor
             # ==============================================
 
-            # protegido_avanzar and (*variable a considerar si solo queremos que el experimento dure una determinada cantidad de segundos*)
             if (1 in poses and 2 in poses and 3 in poses):
                 ultima_vista = ahora
 
