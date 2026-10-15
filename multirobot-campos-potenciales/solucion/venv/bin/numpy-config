@@ -1,4 +1,4 @@
-#!/home/ultra/Escritorio/rm_clase_2026-2-main/PYTHON/venv/bin/python3
+#!/home/ultra/Escritorio/servicio_social_MRG/multirobot-campos-potenciales/solucion/venv/bin/python
 # -*- coding: utf-8 -*-
 import re
 import sys
